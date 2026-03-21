@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>AutoQuote Analyzer</title>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0a0a0a;
+      --surface: #111111;
+      --surface2: #1a1a1a;
+      --border: #2a2a2a;
+      --accent: #e8ff47;
+      --accent2: #ff4747;
+      --text: #f0f0f0;
+      --muted: #888;
+      --good: #47ff8a;
+      --avg: #ffc147;
+      --bad: #ff4747;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'DM Sans', sans-serif;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ── NOISE OVERLAY ── */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+      pointer-events: none;
+      z-index: 0;
+      opacity: 0.4;
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 0 24px;
+      position: relative;
+      z-index: 1;
+    }
+
+    /* ── HEADER ── */
+    header {
+      padding: 48px 0 24px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 56px;
+    }
+
+    .header-inner {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    .logo {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: clamp(42px, 8vw, 72px);
+      line-height: 0.9;
+      letter-spacing: 2px;
+    }
+
+    .logo span {
+      color: var(--accent);
+    }
+
+    .tagline {
+      font-size: 13px;
+      color: var(--muted);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      text-align: right;
+      line-height: 1.6;
+      max-width: 200px;
+    }
+
+    /* ── UPLOAD ZONE ── */
+    .upload-section {
+      margin-bottom: 48px;
+    }
+
+    .upload-label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+      color: var(--muted);
+      margin-bottom: 12px;
+      display: block;
+    }
+
+    .drop-zone {
+      border: 1.5px dashed var(--border);
+      border-radius: 4px;
+      padding: 56px 32px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+      background: var(--surface);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .drop-zone::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, transparent 60%, rgba(232,255,71,0.03));
+      pointer-events: none;
+    }
+
+    .drop-zone:hover, .drop-zone.drag-over {
+      border-color: var(--accent);
+      background: #111;
+    }
+
+    .drop-zone.drag-over { background: #141408; }
+
+    .drop-icon {
+      font-size: 40px;
+      margin-bottom: 12px;
+      display: block;
+    }
+
+    .drop-title {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 28px;
+      letter-spacing: 1px;
+      margin-bottom: 8px;
+    }
+
+    .drop-sub {
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    #fileInput { display: none; }
+
+    .file-selected {
+      margin-top: 16px;
+      display: none;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 16px;
+      background: var(--surface2);
+      border-radius: 4px;
+      border: 1px solid var(--border);
+    }
+
+    .file-selected .file-name {
+      font-family: 'DM Mono', monospace;
+      font-size: 13px;
+      color: var(--accent);
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .btn-analyze {
+      width: 100%;
+      margin-top: 20px;
+      padding: 18px;
+      background: var(--accent);
+      color: #0a0a0a;
+      border: none;
+      border-radius: 4px;
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 22px;
+      letter-spacing: 2px;
+      cursor: pointer;
+      transition: all 0.15s;
+      display: none;
+    }
+
+    .btn-analyze:hover { background: #d4eb2e; transform: translateY(-1px); }
+    .btn-analyze:active { transform: translateY(0); }
+    .btn-analyze:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+    /* ── LOADING ── */
+    #loading {
+      display: none;
+      text-align: center;
+      padding: 64px 0;
+    }
+
+    .spinner {
+      width: 40px;
+      height: 40px;
+      border: 2px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin: 0 auto 20px;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .loading-text {
+      font-family: 'DM Mono', monospace;
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    /* ── RESULTS ── */
+    #results { display: none; }
+
+    .results-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 32px;
+      padding-bottom: 20px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .results-title {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 36px;
+      letter-spacing: 1px;
+    }
+
+    .rating-badge {
+      padding: 6px 16px;
+      border-radius: 2px;
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 18px;
+      letter-spacing: 2px;
+    }
+
+    .rating-good { background: rgba(71,255,138,0.15); color: var(--good); border: 1px solid var(--good); }
+    .rating-average { background: rgba(255,193,71,0.15); color: var(--avg); border: 1px solid var(--avg); }
+    .rating-overpriced { background: rgba(255,71,71,0.15); color: var(--bad); border: 1px solid var(--bad); }
+
+    /* Summary card */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 24px;
+      margin-bottom: 16px;
+    }
+
+    .card-label {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.2em;
+      color: var(--muted);
+      margin-bottom: 12px;
+    }
+
+    .summary-text {
+      font-size: 15px;
+      line-height: 1.7;
+      color: #ccc;
+    }
+
+    .premium-display {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 48px;
+      color: var(--accent);
+      letter-spacing: 2px;
+      margin-top: 8px;
+    }
+
+    /* Coverage grid */
+    .section-title {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 24px;
+      letter-spacing: 1px;
+      margin: 32px 0 16px;
+      color: var(--muted);
+    }
+
+    .coverage-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    @media (max-width: 600px) { .coverage-grid { grid-template-columns: 1fr; } }
+
+    .coverage-item {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 20px;
+      border-left: 3px solid var(--border);
+      transition: border-color 0.2s;
+    }
+
+    .coverage-item.good { border-left-color: var(--good); }
+    .coverage-item.average { border-left-color: var(--avg); }
+    .coverage-item.overpriced { border-left-color: var(--bad); }
+
+    .cov-name {
+      font-size: 13px;
+      font-weight: 500;
+      margin-bottom: 4px;
+    }
+
+    .cov-amount {
+      font-family: 'DM Mono', monospace;
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 10px;
+    }
+
+    .cov-badge {
+      display: inline-block;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      padding: 2px 8px;
+      border-radius: 2px;
+      margin-bottom: 10px;
+    }
+
+    .badge-good { background: rgba(71,255,138,0.1); color: var(--good); }
+    .badge-average { background: rgba(255,193,71,0.1); color: var(--avg); }
+    .badge-overpriced { background: rgba(255,71,71,0.1); color: var(--bad); }
+
+    .cov-explanation {
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    /* Lists */
+    .flag-list, .tip-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .flag-list li, .tip-list li {
+      display: flex;
+      gap: 12px;
+      font-size: 14px;
+      line-height: 1.6;
+      color: #bbb;
+      padding: 14px 16px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+    }
+
+    .flag-list li::before { content: '⚠'; color: var(--bad); flex-shrink: 0; }
+    .tip-list li::before { content: '→'; color: var(--accent); flex-shrink: 0; font-weight: bold; }
+
+    /* Overall explanation */
+    .overall-box {
+      padding: 24px;
+      background: var(--surface2);
+      border-radius: 4px;
+      border: 1px solid var(--border);
+      margin-top: 32px;
+      margin-bottom: 48px;
+    }
+
+    .overall-box p {
+      font-size: 15px;
+      line-height: 1.8;
+      color: #ccc;
+    }
+
+    .btn-reset {
+      margin-top: 24px;
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      padding: 12px 24px;
+      border-radius: 4px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 13px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-reset:hover { border-color: var(--accent); color: var(--accent); }
+
+    /* ── ERROR ── */
+    #error {
+      display: none;
+      padding: 20px;
+      background: rgba(255,71,71,0.08);
+      border: 1px solid var(--bad);
+      border-radius: 4px;
+      color: var(--bad);
+      font-size: 14px;
+      margin-top: 16px;
+    }
+
+    /* ── FOOTER ── */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 24px 0;
+      margin-top: 48px;
+      text-align: center;
+    }
+
+    footer p {
+      font-size: 12px;
+      color: #444;
+      font-family: 'DM Mono', monospace;
+    }
+
+    footer a { color: var(--accent); text-decoration: none; }
+
+    /* animations */
+    .fade-in { animation: fadeIn 0.4s ease forwards; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="header-inner">
+        <div class="logo">Auto<span>Quote</span><br>Analyzer</div>
+        <div class="tagline">AI-powered car insurance<br>transparency tool</div>
+      </div>
+    </header>
+
+    <!-- UPLOAD -->
+    <div class="upload-section" id="uploadSection">
+      <span class="upload-label">Step 01 — Upload your policy PDF</span>
+      <div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
+        <span class="drop-icon">📄</span>
+        <div class="drop-title">Drop your PDF here</div>
+        <div class="drop-sub">or click to browse · max 16MB</div>
+        <input type="file" id="fileInput" accept=".pdf" />
+      </div>
+
+      <div class="file-selected" id="fileSelected">
+        <span>📎</span>
+        <span class="file-name" id="fileName"></span>
+        <span style="color: var(--muted); font-size:12px;" id="fileSize"></span>
+      </div>
+
+      <button class="btn-analyze" id="analyzeBtn" onclick="analyze()">
+        Analyze My Policy →
+      </button>
+
+      <div id="error"></div>
+    </div>
+
+    <!-- LOADING -->
+    <div id="loading">
+      <div class="spinner"></div>
+      <p class="loading-text">Reading your policy and analyzing coverage...</p>
+    </div>
+
+    <!-- RESULTS -->
+    <div id="results"></div>
+
+    <footer>
+      <p>AutoQuote Analyzer · Built with Python, Flask & <a href="https://anthropic.com" target="_blank">Claude AI</a> · <a href="https://github.com" target="_blank">View on GitHub</a></p>
+    </footer>
+  </div>
+
+  <script>
+    const dropZone = document.getElementById('dropZone');
+    const fileInput = document.getElementById('fileInput');
+    const fileSelected = document.getElementById('fileSelected');
+    const fileName = document.getElementById('fileName');
+    const fileSize = document.getElementById('fileSize');
+    const analyzeBtn = document.getElementById('analyzeBtn');
+    let selectedFile = null;
+
+    // Drag and drop
+    dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+    dropZone.addEventListener('drop', e => {
+      e.preventDefault();
+      dropZone.classList.remove('drag-over');
+      const file = e.dataTransfer.files[0];
+      if (file && file.type === 'application/pdf') handleFile(file);
+      else showError('Please upload a PDF file.');
+    });
+
+    fileInput.addEventListener('change', () => {
+      if (fileInput.files[0]) handleFile(fileInput.files[0]);
+    });
+
+    function handleFile(file) {
+      selectedFile = file;
+      fileName.textContent = file.name;
+      fileSize.textContent = (file.size / 1024).toFixed(0) + ' KB';
+      fileSelected.style.display = 'flex';
+      analyzeBtn.style.display = 'block';
+      hideError();
+    }
+
+    function showError(msg) {
+      const el = document.getElementById('error');
+      el.textContent = '⚠ ' + msg;
+      el.style.display = 'block';
+    }
+
+    function hideError() {
+      document.getElementById('error').style.display = 'none';
+    }
+
+    async function analyze() {
+      if (!selectedFile) return;
+      hideError();
+
+      // Show loading
+      document.getElementById('uploadSection').style.display = 'none';
+      document.getElementById('loading').style.display = 'block';
+
+      const formData = new FormData();
+      formData.append('file', selectedFile);
+
+      try {
+        const res = await fetch('/analyze', { method: 'POST', body: formData });
+        const data = await res.json();
+
+        document.getElementById('loading').style.display = 'none';
+
+        if (!data.success) {
+          document.getElementById('uploadSection').style.display = 'block';
+          showError(data.error || 'Something went wrong. Please try again.');
+          return;
+        }
+
+        renderResults(data.analysis);
+      } catch (err) {
+        document.getElementById('loading').style.display = 'none';
+        document.getElementById('uploadSection').style.display = 'block';
+        showError('Network error. Make sure the server is running.');
+      }
+    }
+
+    function ratingClass(r) {
+      if (!r) return '';
+      const map = { good: 'good', average: 'average', overpriced: 'overpriced' };
+      return map[r.toLowerCase()] || 'average';
+    }
+
+    function ratingLabel(r) {
+      if (!r) return 'Unknown';
+      const map = { good: '✓ Good Value', average: '~ Average', overpriced: '✗ Overpriced' };
+      return map[r.toLowerCase()] || r;
+    }
+
+    function renderResults(a) {
+      const rc = ratingClass(a.overall_rating);
+      const html = `
+        <div class="results-header fade-in">
+          <div class="results-title">Analysis Complete</div>
+          <div class="rating-badge rating-${rc}">${ratingLabel(a.overall_rating)}</div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;" class="fade-in">
+          <div class="card">
+            <div class="card-label">Your Premium</div>
+            <div class="premium-display">${a.monthly_cost || 'N/A'}</div>
+          </div>
+          <div class="card">
+            <div class="card-label">Policy Summary</div>
+            <p class="summary-text">${a.summary || 'No summary available.'}</p>
+          </div>
+        </div>
+
+        <div class="section-title fade-in">Coverage Breakdown</div>
+        <div class="coverage-grid fade-in">
+          ${(a.coverage_items || []).map(item => `
+            <div class="coverage-item ${ratingClass(item.assessment)}">
+              <div class="cov-name">${item.name || ''}</div>
+              <div class="cov-amount">${item.amount || ''}</div>
+              <span class="cov-badge badge-${ratingClass(item.assessment)}">${ratingLabel(item.assessment)}</span>
+              <div class="cov-explanation">${item.explanation || ''}</div>
+            </div>
+          `).join('')}
+        </div>
+
+        ${a.red_flags && a.red_flags.length ? `
+          <div class="section-title fade-in">Red Flags</div>
+          <ul class="flag-list fade-in">
+            ${a.red_flags.map(f => `<li>${f}</li>`).join('')}
+          </ul>
+        ` : ''}
+
+        ${a.savings_tips && a.savings_tips.length ? `
+          <div class="section-title fade-in">Ways to Save</div>
+          <ul class="tip-list fade-in">
+            ${a.savings_tips.map(t => `<li>${t}</li>`).join('')}
+          </ul>
+        ` : ''}
+
+        <div class="overall-box fade-in">
+          <div class="card-label">Overall Assessment</div>
+          <p>${a.overall_explanation || ''}</p>
+        </div>
+
+        <button class="btn-reset" onclick="reset()">← Analyze Another Policy</button>
+      `;
+
+      const resultsEl = document.getElementById('results');
+      resultsEl.innerHTML = html;
+      resultsEl.style.display = 'block';
+    }
+
+    function reset() {
+      selectedFile = null;
+      fileInput.value = '';
+      fileSelected.style.display = 'none';
+      analyzeBtn.style.display = 'none';
+      document.getElementById('results').style.display = 'none';
+      document.getElementById('uploadSection').style.display = 'block';
+      hideError();
+    }
+  </script>
+</body>
+</html>
