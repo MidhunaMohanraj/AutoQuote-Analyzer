@@ -40,7 +40,7 @@ Analyze the following text and return a JSON response with this exact structure:
       "amount": "Coverage amount or limit",
       "assessment": "good|average|overpriced",
       "explanation": "1-2 sentence plain English explanation of this coverage and if the price seems fair"
-    }}
+    }} 
   ],
   "red_flags": [
     "List of specific things the user might be overpaying for or missing"
