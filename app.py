@@ -31,7 +31,7 @@ def analyze_insurance_with_ai(pdf_text):
     prompt = f"""You are an expert car insurance analyst. A user has uploaded their car insurance policy or renewal document. 
 Analyze the following text and return a JSON response with this exact structure:
 
-{{
+{{   
   "summary": "2-3 sentence plain English summary of what this policy covers",
   "monthly_cost": "extracted monthly or annual premium (string, e.g. '$1,200/year')",
   "coverage_items": [
