@@ -57,7 +57,7 @@ Return ONLY valid JSON, no markdown, no extra text.
 
 Insurance document text:
 {pdf_text[:6000]}"""
-
+   
     message = client.messages.create(
         model="claude-sonnet-4-20250514",
         max_tokens=2000,
