@@ -4,7 +4,7 @@ from flask import Flask, request, jsonify, render_template
 from werkzeug.utils import secure_filename
 import pdfplumber
 import anthropic
-        
+           
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = 'uploads'
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max
